@@ -10,20 +10,20 @@ This repository contains all results and analytic code in R and Python for the F
 
 # Python - analysis of IBM pickled data
 
+Data and methods described in this manuscript: https://arxiv.org/abs/1911.02095
+
 ## System requirements
 
-* python packages
+* python 3.7 packages
   * pickle
-  * csv
   * typing
-  * ClusterMapData (custom package from IBM)
+  * numpy
+  * ClusterMapData (custom package from IBM - preinstalled in our github)
+
 
 ```
-import pickle
-import csv
-from pprint import pprint
-# Make sure "ClusterMapData.py" is in your working directory and that "typing" is also installed
-from ClusterMapData import ClusterMapData
-# https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.linkage.html
-# https://seaborn.pydata.org/generated/seaborn.clustermap.html
+# How to open jupyter notebook
+jupyter notebook Explore_pickled_data.ipynb
+
+
 ```
