@@ -12,7 +12,7 @@ This repository contains all results and analytic code in R and Python for the F
 
 Data and methods described in this manuscript: https://arxiv.org/abs/1911.02095
 
-Goals for this data:
+Goals for the "genome" data (not domain vs neighbor):
 1. Extract the phylogenetic trees for genomes corresponding to 15 datasets.
 2. Explore virulence factor ecology
   * What are the "core" features found in each species?
