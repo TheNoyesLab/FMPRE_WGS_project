@@ -20,6 +20,13 @@ Goals for this data:
   * Importance of known virulence factors. (tx2, eae, tir, exhA, and pO157 for Escherichia)
 
 
+Analysis plans:
+1. Get of all SRA accessions for genomes in the 15 datasests.
+2. One dataset at a time, extract the results for those genomes from the IBM pickled data.
+3. Re-run the linkage function to create new phylogenetic tree with just the new subset of genomes.
+4. Export the phylogenetic tree in ".newick" format. Analyze these trees using the same R code we are using for the other pipelines.
+
+
 
 ## System requirements
 
