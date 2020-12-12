@@ -20,7 +20,6 @@ set.seed(1)
 # Read in phylogenetic trees
 lyve_tree <- read.tree(file = "Pipeline_results/Old_results/Ecoli_romaine_outbreak/exported_trees/lyveset.newick")
 
-
 # kSNP3 tree.NJ.tre, tree.ML.tre, tree.core.tre, tree.parsimony.tre
 ksnp_tree <- read.tree(file = "Pipeline_results/Old_results/Ecoli_romaine_outbreak/exported_trees/ksnp3.newick")
 
@@ -69,6 +68,7 @@ ksnp_tree <- drop.tip(combined_trees[[2]], all_SRA_to_drop)
 cfsan_tree <- drop.tip(combined_trees[[3]], all_SRA_to_drop)
 enterobase_tree <- drop.tip(combined_trees[[4]], all_SRA_to_drop)
 
+# Add root to tree
 lyve_tree_rooted <- root(lyve_tree,1, r = TRUE)
 ksnp_tree_rooted <- root(ksnp_tree,1, r = TRUE)
 cfsan_tree_rooted <- root(cfsan_tree,1, r = TRUE)
@@ -121,7 +121,7 @@ cospeciation(lyve_tree,enterobase_tree, distance = c("SPR"), method=c("permutati
 cospeciation(cfsan_tree, enterobase_tree, distance = c("SPR"), method=c("permutation"), nsim = 1000)
 
 # Example plot of cospeciation results
-plot(cospeciation(ksnp_tree, enterobase_tree, distance = c("RF")))
+plot(cospeciation(ksnp_tree, enterobase_tree, distance = c("RF"),method=c("permutation"), nsim = 1000))
 
 
 #
@@ -198,6 +198,8 @@ densityTree(combined_rooted_trees,use.edge.length=FALSE,type="phylogram",nodes="
 ####
 ###
 # https://cran.r-project.org/web/packages/treespace/vignettes/introduction.html
+library(treespace)
+
 
 combined_treespace <- treespace(combined_rooted_trees, nf=3) # , return.tree.vectors = TRUE
 
@@ -214,17 +216,29 @@ plotGrovesD3(combined_treespace_groves)
 colless.test(combined_treespace_groves, alternative="greater")
 likelihood.test(combined_treespace, alternative='greater')
 
-
+#
 ##
-###
-#### ggtree
-###
+### Test OTU grouping - not fully working yet.
 ##
+# Enrique working on this
 
 # Mutate to create new column with selected outbreak group
 SRA_metadata <- as_tibble(SRA_metadata)
 SRA_metadata <- SRA_metadata %>% mutate(Group = ifelse(SNP.cluster == "PDS000000366.382" , "Outbreak", "Other"))
 
+
+outbreak_group <- SRA_metadata %>%
+  filter(SNP.cluster == "PDS000000366.382")  %>%
+  select(Newick_label)
+
+#Just the sample Ids
+lyve_tree_w_meta <- groupOTU(lyve_tree ,outbreak_group, group_name = "Outbreak")
+
+p <- ggtree(lyve_tree_w_meta, aes(color=Outbreak)) +
+  scale_color_manual(values = c("#efad29", "#63bbd4")) +
+  geom_nodepoint(color="black", size=0.1) +
+  geom_tiplab(size=2, color="black")
+p
 
 
 
