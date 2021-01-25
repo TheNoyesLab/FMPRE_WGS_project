@@ -1,6 +1,8 @@
 # Required R packages
 library(ape)
 library(phytools)
+install.packages('TreeDist')
+library(TreeDist)
 # load treespace and packages for plotting:
 library(treespace)
 library(phylogram)
@@ -42,6 +44,9 @@ dataset1_tree_vector <- c(as.phylo(lyve_tree),as.phylo(ksnp_tree),as.phylo(cfsan
 #   and can perform any further analysis you wish. 
 # Alot of the code below is still experimental and needs improvement.
 
+
+
+
 #
 ##
 ### Code for subsetting trees with unmatched nodes
@@ -73,6 +78,197 @@ lyve_tree_rooted <- root(lyve_tree,1, r = TRUE)
 ksnp_tree_rooted <- root(ksnp_tree,1, r = TRUE)
 cfsan_tree_rooted <- root(cfsan_tree,1, r = TRUE)
 enterobase_tree_rooted <- root(enterobase_tree,1, r = TRUE)
+
+
+combined_trees_clean <- c(lyve_tree,ksnp_tree,cfsan_tree,enterobase_tree)
+
+
+
+#
+##
+### TreeDist
+## Generalized Robinson-Foulds distance
+#
+VisualizeMatching(SharedPhylogeneticInfo, lyve_tree, ksnp_tree, 
+                  Plot = TreeDistPlot, matchZeros = FALSE)
+
+
+SharedPhylogeneticInfo(lyve_tree, ksnp_tree)
+MutualClusteringInfo(lyve_tree, ksnp_tree)
+NyeSimilarity(lyve_tree, ksnp_tree)
+JaccardRobinsonFoulds(lyve_tree, ksnp_tree)
+MatchingSplitDistance(lyve_tree, ksnp_tree)
+MatchingSplitInfoDistance(lyve_tree, ksnp_tree)
+
+
+VisualizeMatching(JaccardRobinsonFoulds, lyve_tree, ksnp_tree, 
+                  Plot = TreeDistPlot, matchZeros = FALSE)
+
+#
+##
+### TreeDist
+## Using a suitable distance metric, projecting distances
+#
+
+# Tree colors
+library('TreeTools', quietly = TRUE, warn.conflicts = FALSE)
+treeNumbers <- c(1:4)
+spectrum <- viridisLite::plasma(4)
+treeCols <- spectrum[treeNumbers]
+
+# calculate distances
+distances <- ClusteringInfoDistance(combined_trees_clean)
+distances <- RobinsonFoulds(combined_trees_clean)
+
+
+distances <- as.dist(Quartet::QuartetDivergence(Quartet::ManyToManyQuartetAgreement(combined_trees_clean), similarity = FALSE))
+
+
+
+# Projecting distances
+#Then we need to reduce the dimensionality of these distances. We’ll start out with a 12-dimensional projection; if needed, we can always drop higher dimensions.
+
+#Principal components analysis is quick and performs very well:
+  
+projection <- cmdscale(distances, k = 3)
+# Alternative projection methods do exist, and sometimes give slightly better projections. isoMDS() performs non-metric multidimensional scaling (MDS) with the Kruskal-1 stress function (Kruskal, 1964):
+kruskal <- MASS::isoMDS(distances, k = 3)
+projection <- kruskal$points
+#whereas sammon(), one of many metric MDS methods, uses Sammon’s stress function (Sammon, 1969):
+  
+sammon <- MASS::sammon(distances, k = 3)
+projection <- sammon$points
+#That’s a good start. It is tempting to plot the first two dimensions arising from this projection and be done:
+  
+par(mar = rep(0, 4))
+plot(projection,
+     asp = 1, # Preserve aspect ratio - do not distort distances
+     ann = FALSE, axes = FALSE, # Don't label axes: dimensions are meaningless
+     col = treeCols, pch = 16
+)
+
+#
+## Identifying clusters
+#
+
+
+# A quick visual inspection suggests at least two clusters, with the possibility of further subdivision
+# of the brighter trees. But visual inspection can be highly misleading (Smith, 2021). 
+# We must take a statistical approach. A combination of partitioning around medoids and hierarchical 
+# clustering with minimax linkage will typically find a clustering solution that is close to optimal, 
+# if one exists (Smith, 2021).
+library(protoclust)
+
+possibleClusters <- 3:10
+
+# Had to choose static K value
+pamClusters <- lapply(possibleClusters, function (x) cluster::pam(distances, k = 3))
+
+pamSils <- vapply(pamClusters, function (pamCluster) {
+  mean(cluster::silhouette(pamCluster)[, 3])
+}, double(1))
+
+bestPam <- which.max(pamSils)
+pamSil <- pamSils[bestPam]
+pamCluster <- pamClusters[[bestPam]]$cluster
+
+hTree <- protoclust::protoclust(distances)
+hClusters <- lapply(possibleClusters, function (k) cutree(hTree, k = 3))
+hSils <- vapply(hClusters, function (hCluster) {
+  mean(cluster::silhouette(hCluster, distances)[, 3])
+}, double(1))
+
+
+bestH <- which.max(hSils)
+hSil <- hSils[bestH]
+hCluster <- hClusters[[bestH]]
+
+plot(pamSils ~ possibleClusters,
+     xlab = 'Number of clusters', ylab = 'Silhouette coefficient',
+     ylim = range(c(pamSils, hSils)))
+points(hSils ~ possibleClusters, pch = 2)
+legend('topright', c('PAM', 'Hierarchical'), pch = 1:2)
+
+# Silhouette coefficients of < 0.25 suggest that structure is not meaningful; > 0.5 denotes good evidence 
+# of clustering, and > 0.7 strong evidence (Kaufman & Rousseeuw, 1990). The evidence for the visually 
+# apparent clustering is not as strong as it first appears. Let’s explore our two-cluster hierarchical
+# clustering solution anyway.
+
+cluster <- hClusters[[2 - 1]]
+#We can visualize the clustering solution as a tree:
+  
+class(hTree) <- 'hclust'
+par(mar = c(0, 0, 0, 0))
+plot(hTree, labels = FALSE, main = '')
+points(seq_along(trees), rep(1, length(trees)), pch = 16,
+       col = spectrum[hTree$order])
+
+
+#Another thing we may wish to do is to take the consensus of each cluster:
+  
+par(mfrow = c(1, 2), mar = rep(0.2, 4))
+col1 <- spectrum[mean(treeNumbers[cluster == 1])]
+col2 <- spectrum[mean(treeNumbers[cluster == 2])]
+plot(consensus(trees[cluster == 1]), edge.color = col1, edge.width = 2, tip.color = col1)
+plot(consensus(trees[cluster == 2]), edge.color = col2, edge.width = 2, tip.color = col2)
+
+
+
+# Validating a projection
+# Now let’s evaluate whether our plot of tree space is representative. First we want to know how many dimensions are necessary to adequately represent the true distances between trees. We hope for a trustworthiness × continuity score of > 0.9 for a usable projection, or > 0.95 for a good one.
+library(TreeTools)
+# ProjectionQuality doesn't work with regular TreeDist
+#remotes::install_github("ms609/TreeDist")
+
+txc <- vapply(1:12, function (k) {
+  newDist <- dist(projection[, seq_len(k)])
+  TreeTools::ProjectionQuality(distances, newDist, 10)['TxC']
+}, 0)
+plot(txc, xlab = 'Dimension')
+abline(h = 0.9, lty = 2)
+
+
+# To help establish visually what structures are more likely to be genuine, we might also choose to calculate a minimum spanning tree:
+mstEnds <- MSTEdges(distances)
+
+# Let’s plot the first five dimensions of our tree space, highlighting the convex hulls of our clusters:
+plotSeq <- matrix(0, 5, 5)
+plotSeq[upper.tri(plotSeq)] <- seq_len(5 * (5 - 1) / 2)
+plotSeq <- t(plotSeq[-5, -1])
+plotSeq[c(5, 10, 15)] <- 11:13
+layout(plotSeq)
+par(mar = rep(0.1, 4))
+
+for (i in 2:4) for (j in seq_len(i - 1)) {
+  # Set up blank plot
+  plot(projection[, j], projection[, i], ann = FALSE, axes = FALSE, frame.plot = TRUE,
+       type = 'n', asp = 1, xlim = range(projection), ylim = range(projection))
+  
+  # Plot MST
+  apply(mstEnds, 1, function (segment)
+    lines(projection[segment, j], projection[segment, i], col = "#bbbbbb", lty = 1))
+  
+  # Add points
+  points(projection[, j], projection[, i], pch = 16, col = treeCols)
+  
+  # Mark clusters
+  for (clI in unique(cluster)) {
+    inCluster <- cluster == clI
+    clusterX <- projection[inCluster, j]
+    clusterY <- projection[inCluster, i]
+    hull <- chull(clusterX, clusterY)
+    polygon(clusterX[hull], clusterY[hull], lty = 1, lwd = 2,
+            border = '#54de25bb')
+  }
+}
+# Annotate dimensions
+plot(0, 0, type = 'n', ann = FALSE, axes = FALSE)
+text(0, 0, 'Dimension 2')
+plot(0, 0, type = 'n', ann = FALSE, axes = FALSE)
+text(0, 0, 'Dimension 3')
+plot(0, 0, type = 'n', ann = FALSE, axes = FALSE)
+text(0, 0, 'Dimension 4')
+
 
 
 #
