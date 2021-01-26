@@ -1,7 +1,7 @@
 # FMPRE_WGS_project
 This repository contains all results and analytic code in R and Python for the FMPRE WGS project.
 
-
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/TheNoyesLab/FMPRE_WGS_project/main)
 
 # R - analysis of phylogenetic trees
 
